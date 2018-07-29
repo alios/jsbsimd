@@ -1,0 +1,63 @@
+name:                jsbsimd-server
+version:             0.1.0.0
+github:              "alios/jsbsimd-server"
+license:             BSD3
+author:              "Markus Barenhoff"
+maintainer:          "mbarenh@alios.org"
+copyright:           "BSD3"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/alios/jsbsimd-server#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- jsbsimd-common
+- wai
+- lens
+- servant
+
+library:
+  source-dirs: src
+  dependencies:
+  - http-types
+  - resourcet
+  - servant-server
+  - websockets
+  - wai-websockets
+  - wai-app-static
+
+executables:
+  jsbsimd-server-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - jsbsimd-server
+    - tls
+    - wai-extra
+    - warp
+    - warp-tls
+
+tests:
+  jsbsimd-server-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - jsbsimd-server
