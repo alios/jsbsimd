@@ -14,21 +14,23 @@ import           Network.Wai.Middleware.Gzip
 import           Network.Wai.Middleware.RequestLogger
 
 
-runTLSApp :: Bool -> FilePath -> FilePath -> Application -> IO ()
-runTLSApp debug cert key =
+runTLSApp :: HasJSBSimdConfig cfg => cfg -> Application -> IO ()
+runTLSApp cfg =
   let tlsCfg = (tlsSettings cert key) {
-        tlsAllowedVersions = [TLS12]
+        tlsAllowedVersions = [TLS12],
+        onInsecure = AllowInsecure
         }
       warpCfg = defaultSettings {
         settingsHost = "*6"
         }
-      middleware = logStdoutDev . gzip def . forceSSL
+      middleware = logStdoutDev . forceSSL . gzip def
+      cert = cfg ^. jsbsimdTLSCert
+      key = cfg ^. jsbsimdTLSKey
+
   in runTLS tlsCfg defaultSettings . middleware
 
 
 
 main :: IO ()
-main = runTLSApp True cert key jsbsimdApp
-  where cfg = _JSBSimdConfig # ("cert.pem", "key.pem")
-        cert = cfg ^. jsbsimdTLSCert
-        key = cfg ^. jsbsimdTLSKey
+main = runTLSApp cfg jsbsimdApp
+  where cfg = _JSBSimdConfig # (True, "cert.pem", "key.pem")

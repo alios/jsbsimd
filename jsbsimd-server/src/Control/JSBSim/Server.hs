@@ -18,6 +18,8 @@ import           Servant.Server
 
 
 data JSBSimdConfig = JSBSimdConfig {
+--  _jsbsimdHTTPPort :: PortNumber,
+  _jsbsimdDebug   :: Bool,
   _jsbsimdTLSCert :: FilePath,
   _jsbsimdTLSKey  :: FilePath
   } deriving (Show, Eq)
