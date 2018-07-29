@@ -2,7 +2,7 @@
 
 module Main where
 
-import           Control.JSBSim.Server
+import           Control.JSBSim
 import           Control.Lens.Operators
 import           Network.TLS
 import           Network.Wai
@@ -33,4 +33,4 @@ runTLSApp cfg =
 
 main :: IO ()
 main = runTLSApp cfg jsbsimdApp
-  where cfg = _JSBSimdConfig # (True, "cert.pem", "key.pem")
+  where cfg = _JSBSimdConfig # (3000, True, "cert.pem", "key.pem")

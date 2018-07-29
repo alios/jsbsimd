@@ -22,19 +22,21 @@ description:         Please see the README on GitHub at <https://github.com/alio
 dependencies:
 - base >= 4.7 && < 5
 - jsbsimd-common
-- wai
 - lens
 - servant
+- wai
+- warp
 
 library:
   source-dirs: src
   dependencies:
   - http-types
+  - monad-logger
+  - mongoDB
   - resourcet
   - servant-server
   - websockets
   - wai-websockets
-  - wai-app-static
 
 executables:
   jsbsimd-server-exe:
@@ -48,7 +50,6 @@ executables:
     - jsbsimd-server
     - tls
     - wai-extra
-    - warp
     - warp-tls
 
 tests:

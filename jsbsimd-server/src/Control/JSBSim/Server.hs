@@ -1,37 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
 
-module Control.JSBSim.Server (jsbsimdApp, _JSBSimdConfig, HasJSBSimdConfig(..)) where
+module Control.JSBSim.Server (jsbsimdApp) where
 
 import           Control.JSBSim.Handler
-import           Control.Lens.TH
+import           Control.JSBSim.Types
 import           Control.Monad.Trans.Resource
 import           Data.JSBSim.Api
 import           Data.JSBSim.Types
 import           Network.HTTP.Types
 import           Network.Wai
-import           Network.Wai.Application.Static
 import           Network.Wai.Handler.WebSockets
 import           Network.WebSockets
 import           Servant
 import           Servant.Server
 
-
-data JSBSimdConfig = JSBSimdConfig {
---  _jsbsimdHTTPPort :: PortNumber,
-  _jsbsimdDebug   :: Bool,
-  _jsbsimdTLSCert :: FilePath,
-  _jsbsimdTLSKey  :: FilePath
-  } deriving (Show, Eq)
-
-makePrisms ''JSBSimdConfig
-makeClassy ''JSBSimdConfig
-
 jsbsimdApp :: Application
 jsbsimdApp  = websocketApp apiApp
-
-
-
 
 apiServer :: Server JSBSimdApi
 apiServer =

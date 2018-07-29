@@ -1,0 +1,6 @@
+packages:
+- ./jsbsimd-common
+- ./jsbsimd-server
+
+extra-deps: []
+resolver: lts-12.2
