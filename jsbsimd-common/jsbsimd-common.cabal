@@ -15,13 +15,14 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Data.JSBSim, Data.JSBSim.Api Data.JSBSim.Types
+  exposed-modules:     Data.JSBSim, Data.JSBSim.Api, Data.JSBSim.Types, Control.JSBSim.Client
   build-depends:       base >= 4.7 && < 5,
                        aeson,
                        dimensional,
                        lens,
                        text,
-                       servant
+                       servant,
+                       servant-client-core
   default-language:    Haskell2010
 
 source-repository head

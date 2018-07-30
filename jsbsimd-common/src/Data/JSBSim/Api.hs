@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE TypeOperators #-}
+
 module Data.JSBSim.Api (jsbsimdApi, JSBSimdApi, WithInstanceId)  where
 
 import           Data.JSBSim.Types
@@ -15,7 +16,7 @@ type JSBSimdApi
   :<|>  "instances" :>  WithInstanceId :> Get '[JSON] SimulatorInstance
   :<|> "instances" :> WithInstanceId :> ReqBody '[JSON] SimulatorInstanceCommand :>
         Post '[JSON] NoContent
-  :<|> Raw
+
 
 jsbsimdApi :: Proxy JSBSimdApi
 jsbsimdApi = Proxy

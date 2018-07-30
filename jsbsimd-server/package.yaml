@@ -23,21 +23,27 @@ dependencies:
 - base >= 4.7 && < 5
 - jsbsimd-common
 - lens
+- mtl
+- resourcet
 - servant
-- wai
-- warp
 
 library:
   source-dirs: src
   dependencies:
+  - directory
   - http-types
   - monad-logger
   - mongoDB
-  - resourcet
   - servant-server
-  - websockets
+  - text
+  - unix
+  - wai
+  - warp
+  - wai-app-static
   - wai-websockets
-
+  - websockets
+  ghc-options:
+  - -Wall
 executables:
   jsbsimd-server-exe:
     main:                Main.hs
@@ -51,7 +57,18 @@ executables:
     - tls
     - wai-extra
     - wai-middleware-brotli
+    - wai
+    - warp
     - warp-tls
+  jsbsimd-server-cli:
+    main:                Main.hs
+    source-dirs:         app-cli
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - servant-client
 
 tests:
   jsbsimd-server-test:

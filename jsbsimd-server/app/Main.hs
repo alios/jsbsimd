@@ -4,6 +4,8 @@ module Main where
 
 import           Control.JSBSim
 import           Control.Lens.Operators
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Resource
 import           Network.TLS
 import           Network.Wai
 import           Network.Wai.Handler.Warp             as Warp
@@ -14,9 +16,11 @@ import           Network.Wai.Middleware.ForceSSL
 import           Network.Wai.Middleware.Gzip
 import           Network.Wai.Middleware.RequestLogger
 
-runTLSApp :: HasJSBSimdConfig cfg => cfg -> Application -> IO ()
+
+runTLSApp :: (HasSimdConfig cfg, MonadIO m) => cfg -> Application -> m ()
 runTLSApp cfg =
-  let tlsCfg = (tlsSettings cert key) {
+  let d = cfg ^. simdDebug
+      tlsCfg = (tlsSettings cert key) {
         tlsAllowedVersions = [TLS12],
         onInsecure = AllowInsecure
         }
@@ -24,20 +28,21 @@ runTLSApp cfg =
         settingsHost = "*6"
         }
       brotliCfg = Brotli.defaultSettings {
-        brotliFilesBehavior = BrotliCompress
+        brotliFilesBehavior = if d then BrotliCompress else BrotliCacheFolder tmpdir
         }
       gzipCfg = def {
-        gzipFiles = GzipCompress
-
+        gzipFiles = if d then GzipCompress else GzipCacheFolder tmpdir
         }
       middleware = logStdoutDev . forceSSL . gzip gzipCfg . brotli brotliCfg
-      cert = cfg ^. jsbsimdTLSCert
-      key = cfg ^. jsbsimdTLSKey
-
-  in runTLS tlsCfg warpCfg . middleware
+      cert = cfg ^. simdTLSCert
+      key = cfg ^. simdTLSKey
+      tmpdir = cfg ^. simdTempDir
+  in liftIO . runTLS tlsCfg warpCfg . middleware
 
 
 
 main :: IO ()
-main = runTLSApp cfg jsbsimdApp
-  where cfg = _JSBSimdConfig # (3000, True, "cert.pem", "key.pem")
+main = runResourceT $ do
+  cfg <- allocateConfig 3000 True "cert.pem" "key.pem" (Left "localhost") "jsbsimd"
+  st <- allocateState cfg
+  runTLSApp cfg (jsbsimdApp st)

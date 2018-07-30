@@ -4,12 +4,12 @@
 
 module Data.JSBSim.Types where
 
-import           Control.Lens.Operators
+import           Control.Lens.Getter
 import           Control.Lens.TH
 import           Data.Aeson
-import qualified Data.Text              as T
-import           Data.Typeable          (Typeable)
-import           GHC.Generics           (Generic)
+import qualified Data.Text           as T
+import           Data.Typeable       (Typeable)
+import           GHC.Generics        (Generic)
 import           Servant.API
 import           Text.Read
 
@@ -47,5 +47,8 @@ instance FromHttpApiData SimulatorInstanceId where
   parseUrlPiece a =
     maybe (Left a) Right . fmap SimulatorInstanceId . readMaybe . T.unpack $ a
 
+instance ToHttpApiData SimulatorInstanceId where
+  toUrlPiece  = T.pack . show .  view _SimulatorInstanceId
 
-t = toJSON $ _SimulatorInstance # (_SimulatorInstanceId # 23)
+--  parseUrlPiece a =
+--    maybe (Left a) Right . fmap SimulatorInstanceId . readMaybe . T.unpack $ a
