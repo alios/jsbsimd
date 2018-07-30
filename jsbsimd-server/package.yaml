@@ -50,6 +50,7 @@ executables:
     - jsbsimd-server
     - tls
     - wai-extra
+    - wai-middleware-brotli
     - warp-tls
 
 tests:

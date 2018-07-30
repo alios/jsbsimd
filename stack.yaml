@@ -1,6 +1,7 @@
 packages:
-- ./jsbsimd-common
+- ./jsbsimd-client
 - ./jsbsimd-server
 
 extra-deps: []
-resolver: lts-12.2
+resolver: lts-12.3
+
