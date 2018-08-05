@@ -10,25 +10,23 @@ import           Control.JSBSim.Handler
 import           Control.JSBSim.Types
 import           Control.Lens.Getter
 import           Control.Lens.Operators
+import           Control.Monad.Logger
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Resource
 import           Data.JSBSim.Api
-import           Data.JSBSim.Types
 import qualified Data.Text                       as T
 import           Database.MongoDB.Connection
 import           Database.MongoDB.Query
-import           Network.HTTP.Types
 import           Network.Wai
 import           Network.Wai.Handler.Warp
 import           Network.Wai.Handler.WebSockets
 import           Network.WebSockets
 import           Servant
-import           Servant.Server
 import           System.Directory
-import           System.Posix.Directory
 import           System.Posix.Temp
 import           WaiAppStatic.Storage.Filesystem
 import           WaiAppStatic.Types
+
 
 jsbsimdApp :: HasSimdState st => st ->  Application
 jsbsimdApp st0 = websocketApp st0 (apiApp st0)
@@ -41,17 +39,13 @@ websocketApp st = websocketsOr co sa
           rejectRequest pc "not implemented yet"
 
 
+type JSBSimdApiRaw = (JSBSimdApi Double) :<|> Raw
 
-
-
-
-type JSBSimdApiRaw = JSBSimdApi :<|> Raw
-
-apiServer :: ServerT JSBSimdApi SimdM
+apiServer :: ServerT (JSBSimdApi Double) SimdM
 apiServer =
-  getInstances :<|>
-  getInstance :<|>
-  postInstance
+  getScripts :<|>
+  getScript :<|>
+  postScript
 
 apiStaticServer :: ServerT JSBSimdApiRaw SimdM
 apiStaticServer = apiServer :<|> serveDirectoryWith (staticCfg "static")
@@ -60,8 +54,7 @@ apiStaticServer = apiServer :<|> serveDirectoryWith (staticCfg "static")
 apiApp :: HasSimdState st => st -> Application
 apiApp = serve jsbsimdApiRaw . srv
   where srv st = hoistServer jsbsimdApiRaw (nt st) apiStaticServer
-        nt = flip runReaderT . view simdState
-
+        nt a = flip runReaderT (view simdState a) . runStdoutLoggingT
 
 
 jsbsimdApiRaw :: Proxy JSBSimdApiRaw
@@ -73,9 +66,12 @@ staticCfg :: FilePath -> StaticSettings
 staticCfg fp =
   let d = defaultWebAppSettings fp
   in d {
-    ssGetMimeType = \fp -> if
-        (T.isSuffixOf ".webmanifest" . fromPiece . fileName $ fp)
-        then pure "application/manifest+json" else ssGetMimeType d fp
+    ssGetMimeType = \fp' -> if
+        (T.isSuffixOf ".webmanifest" . fromPiece . fileName $ fp')
+        then pure "application/manifest+json"
+        else if (T.isSuffixOf ".xsl" . fromPiece . fileName $ fp')
+             then pure "text/xsl"
+             else ssGetMimeType d fp'
     }
 
 

@@ -30,11 +30,21 @@ dependencies:
 library:
   source-dirs: src
   dependencies:
+  - aeson
+  - binary
+  - bytestring
+  - bson
   - directory
+  - cryptonite
   - http-types
+  - memory
   - monad-logger
   - mongoDB
   - servant-server
+  - stm
+  - stm-chans
+  - time
+  - typed-process
   - text
   - unix
   - wai
@@ -69,6 +79,10 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - servant-client
+    - http-client
+    - http-client-tls
+    - connection
+    - data-default-class
 
 tests:
   jsbsimd-server-test:

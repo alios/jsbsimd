@@ -12,6 +12,7 @@ import           Database.MongoDB.Query
 import           Network.Wai.Handler.Warp
 
 
+
 type MongoConfig t = Either t (ReplicaSetName, [t])
 
 data SimdConfig = SimdConfig {
