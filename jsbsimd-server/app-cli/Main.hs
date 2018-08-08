@@ -8,6 +8,10 @@
 
 module Main where
 
+main :: IO ()
+main = pure ()
+
+{-
 import           Control.JSBSim.Client   as Client
 import           Control.Monad.Reader
 import           Data.Default.Class
@@ -32,3 +36,4 @@ main = do
 
   a <- runClientEnv e (clientScripts "default")
   liftIO $ print a
+-}

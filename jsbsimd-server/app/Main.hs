@@ -35,8 +35,12 @@ runTLSApp cfg =
       gzipCfg = def {
         gzipFiles = if d then GzipCompress else GzipCacheFolder tmpdir
         }
-      headers = [("Cache-Control", "360")]
-
+      tlsKeyPin = Just "87estEp7ktsBsyvfbnmQg+bYiKooS0XvKMPmAmAfWHE="
+      headers = [ ("Cache-Control", "360")
+                , ("Strict-Transport-Security", "max-age=31536000")
+                ] ++ pinsHeader tlsKeyPin
+      pinsHeader = maybe mempty
+        (\k -> [("Public-Key-Pins", mconcat ["pin-sha256=\"", k, "\"; max-age=5184000"])])
       middleware =
         logStdoutDev . forceSSL .
         gzip gzipCfg . brotli brotliCfg .
@@ -45,6 +49,7 @@ runTLSApp cfg =
       key = cfg ^. simdTLSKey
       tmpdir = cfg ^. simdTempDir
   in liftIO . runTLS tlsCfg warpCfg . middleware
+
 
 
 

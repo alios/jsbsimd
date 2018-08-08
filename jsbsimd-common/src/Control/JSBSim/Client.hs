@@ -1,12 +1,12 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ConstraintKinds        #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE TemplateHaskell        #-}
+{-# LANGUAGE TypeApplications       #-}
 
 module Control.JSBSim.Client
   where
@@ -15,7 +15,6 @@ module Control.JSBSim.Client
   , clientGetInstances, clientGetInstance, clientPostInstance
   , liftClientCommand
   ) where
-  -}
 
 import           Control.Monad.Free
 import           Control.Monad.Free.TH
@@ -83,3 +82,4 @@ apiClient :: forall m . RunClient m => JSBSimdClient m
 apiClient = JSBSimdClient { .. }
   where getScripts :<|> getScript :<|> postScript
           = Proxy @(JSBSimdApi Double) `clientIn` Proxy @m
+  -}

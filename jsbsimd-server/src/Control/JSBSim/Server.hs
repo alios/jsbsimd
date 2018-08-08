@@ -45,7 +45,8 @@ apiServer :: ServerT (JSBSimdApi Double) SimdM
 apiServer =
   getScripts :<|>
   getScript :<|>
-  postScript
+  postScript :<|>
+  putScript
 
 apiStaticServer :: ServerT JSBSimdApiRaw SimdM
 apiStaticServer = apiServer :<|> serveDirectoryWith (staticCfg "static")

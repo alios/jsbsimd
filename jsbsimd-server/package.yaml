@@ -52,6 +52,7 @@ library:
   - wai-app-static
   - wai-websockets
   - websockets
+
   ghc-options:
   - -Wall
 executables:

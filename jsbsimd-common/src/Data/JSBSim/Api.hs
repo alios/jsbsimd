@@ -6,10 +6,10 @@
 
 module Data.JSBSim.Api
   ( XML, jsbsimdApi, JSBSimdApi, getScriptLink, jsbsimdApiLink
-  , ResourceHeaders, ResourceCreateHeaders
+  , ResourceHeaders, ResourceCreateHeaders, ResourceUpdateHeaders
   ) where
 
-import Text.XML.HXT.Arrow.Pickle
+import Control.Monad.Catch
 import           Data.JSBSim.Types
 import           Data.Proxy
 import           Data.Text         (Text)
@@ -17,17 +17,16 @@ import           Servant.API
 import           Network.HTTP.Media ((//))
 import Data.JSBSim.Helper
 import Data.Time.Clock
+import qualified Text.XML.Stream.Render as XR
+import qualified Text.XML.Stream.Parse as XP
+import qualified Data.Conduit.List as CL
+import Conduit
+import qualified Data.ByteString.Lazy as BL
+import Data.Binary.Builder
+import  Data.JSBSim.XML
+import  Data.JSBSim.Script
 
-data XML
 
-instance Accept XML where
-  contentType _ = "application" // "xml"
-
-instance XmlPickler a => MimeRender XML a where
-  mimeRender = const samlToXML
-
-instance XmlPickler a => MimeUnrender XML a where
-  mimeUnrender = const xmlToSAML
 
 type ResourceHeaders =
   '[ Header "ETag" Text
@@ -40,11 +39,13 @@ type ResourceCreateHeaders =
    , Header "ETag" Text
    ]
 
+type ResourceUpdateHeaders = '[ Header "ETag" Text ]
+
 type GetScript t =
-  "scripts" :>
   Header "If-None-Match" String :>
+  "scripts" :>
   Capture "collection" Text :>
-  Capture "scriptName" JsbSimScriptName :>
+  Capture "scriptName" Text :>
   Get '[JSON, XML] (Headers ResourceHeaders (JsbSimScript Double))
 
 type PostScript t =
@@ -54,15 +55,24 @@ type PostScript t =
   PostCreated '[PlainText]
     (Headers ResourceCreateHeaders NoContent)
 
+type PutScript t =
+  Header "If-Match" String :>
+  "scripts" :>
+  Capture "collection" Text :>
+  Capture "scriptName" Text :>
+  ReqBody '[XML, JSON] (JsbSimScript t) :>
+  Put '[PlainText]
+    (Headers ResourceUpdateHeaders NoContent)
 
 
 
 
 
 type JSBSimdApi t =
-  "scripts" :> Capture "collection" Text :> Get '[JSON] [ JsbSimScriptName ] :<|>
+  "scripts" :> Capture "collection" Text :> Get '[JSON] [ Text ] :<|>
   GetScript t :<|>
-  PostScript t
+  PostScript t :<|>
+  PutScript t
 
 
 

@@ -27,6 +27,7 @@ import Data.Time.Clock
 import qualified Data.Bson as Bson
 import Data.Bson as Bson (val, Field(..), (!?))
 import Data.JSBSim.Helper
+import Data.JSBSim.Script
 import Data.Aeson
 import Data.Text (Text)
 import Crypto.Hash.Algorithms
@@ -125,18 +126,22 @@ insertJsbSimScript c s = do
 
 
 
+selectScript :: (Select aQueryOrSelection) => Collection -> Text ->
+  aQueryOrSelection
+selectScript c n =
+  select [ "collection" := val c, "script.scriptName" := val n ] collectionScripts
+
+
 updateJsbSimScript ::
   (HasSimdState st, MonadReader st m, MonadIO m, HasJsbSimScript a t, ScriptValue t)
-  => Collection -> a -> m (Maybe (Digest SHA3_256))
-updateJsbSimScript c s = do
+  => Digest SHA3_256 -> Collection -> a -> m (Maybe (Digest SHA3_256))
+updateJsbSimScript dig' c s = do
   let s' = s ^. jsbSimScript
       dig = hashJsonBson s'
       n = s' ^. scriptName
-  dig' <- lookupJsbSimScriptDigest c n
-  if (Just dig == dig' || dig' == Nothing) then pure Nothing else do
+  if (dig == dig') then pure Nothing else do
     t <- liftIO getCurrentTime
-    let q = select [ "collection" := val c
-                   , "script.scriptName" := val n ] collectionScripts
+    let q = selectScript c n
         m = [ "lastModified" := val t
             , "etag" := val dig
             , "script" := (_JsonBson' # s')
@@ -151,15 +156,22 @@ existsJsbSimScript c n  = lookupJsbSimScriptDigest c n >>=
   pure . maybe False (const True)
 
 
+
+
 lookupJsbSimScriptDigest :: (HasSimdState st, MonadReader st m, MonadIO m) =>
   Collection -> Text -> m (Maybe (Digest SHA3_256))
-lookupJsbSimScriptDigest c n = fail "implement lookupJsbSimScriptDigest"
+lookupJsbSimScriptDigest c n = do
+  let q = (selectScript c n) { limit = 1, project = [ "etag" =: (1 :: Int) ]  }
+  join . fmap (!? "etag") <$> (accessMongo ReadStaleOk . findOne $ q)
+
+
+
 
 
 lookupJsbSimScript :: (HasSimdState st, MonadReader st m, MonadIO m, ScriptValue t) =>
   Collection -> Text -> m (Maybe (JsbSimScriptRecord t))
 lookupJsbSimScript c n =
-  let q = select [ "collection" := val c, "script.scriptName" := val n ] collectionScripts
+  let q = selectScript c n
   in (accessMongo ReadStaleOk . findOne $ q) >>=
      maybe (pure Nothing) (fmap pure . Bson.cast . Doc)
 

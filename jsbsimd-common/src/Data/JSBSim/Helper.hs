@@ -6,6 +6,7 @@
 
 module Data.JSBSim.Helper where
 
+import           Conduit
 import           Control.Lens.At
 import           Control.Lens.Fold
 import           Control.Lens.Getter
@@ -18,24 +19,20 @@ import           Data.Aeson
 import qualified Data.Bson                         as Bson
 import qualified Data.ByteString.Lazy              as BSL
 import qualified Data.ByteString.Lazy.Char8        as BSLC
+import qualified Data.Conduit.List                 as CL
 import           Data.Int
 import           Data.Maybe                        (listToMaybe)
 import           Data.Scientific
+import           Data.String
 import           Data.Text                         (Text)
 import qualified Data.Text                         as T
 import           Data.Vector.Generic.Lens
+import           Data.XML.Types
 import           Numeric.Units.Dimensional.Prelude as Dim
 import qualified Prelude
 import           Text.Read                         (readMaybe)
-import           Text.XML.HXT.Arrow.Pickle.Xml
-import           Text.XML.HXT.Core                 ((<+>), (>>>))
-import qualified Text.XML.HXT.Core                 as HXT
+import qualified Text.XML.Stream.Render            as XR
 
-xpWrapIso :: Iso' a b -> PU a -> PU b
-xpWrapIso i = xpWrap (view i, review i)
-
-xpWrapPrism :: Prism' a b -> PU a -> PU b
-xpWrapPrism i = xpWrapMaybe (preview i, review i)
 
 _Quantity :: Fractional a => Unit m d a -> Iso' a (Quantity d a)
 _Quantity u = iso (*~ u) (/~ u)
@@ -64,29 +61,6 @@ _TimeFrequency :: Fractional t => Iso' (Time t) (Frequency t)
 _TimeFrequency = iso (\i -> (1 *~ one) / i) (\i -> (1 *~ one) / i)
 
 
-xpT :: PU String -> PU Text
-xpT = xpWrapIso (_Text)
-
-xpEither xpa xpb = xpAlt c [xpWrap (Left, \(Left a) -> a) xpa, xpWrap (Right, \(Right a) -> a) xpb]
-  where c (Left _)  = 0
-        c (Right _) = 1
-
-xpBoth :: PU a -> PU b -> PU (a, b)
-xpBoth a b = xpWrapEither (f, t) $ xpPair (xpEither a b) (xpEither a b)
-  where f (Left a, Right b)  = Right (a, b)
-        f (Right b, Left a)  = Right (a, b)
-        f (Left a, Left b)   = Left "expected a and b but got: a and a"
-        f (Right a, Right b) = Left "expected a and b but got: b and b"
-        t (a, b) = (Left a, Right b)
-
-xpBool :: PU Bool
-xpBool = xpWrapEither (f, t) xpText
-  where
-    f "true"  = Right True
-    f "false" = Right False
-    f a       = Left $ "expected true|false, got: " ++ show a
-    t True  = "true"
-    t False = "false"
 
 aesonOpts :: Options
 aesonOpts = defaultOptions {
@@ -144,35 +118,43 @@ _JsonBson' = _JsonBson . _Json
 
 
 
-samlToDoc :: HXT.XmlPickler a => a -> HXT.XmlTree
-samlToDoc = head . HXT.runLA (HXT.addXmlPi >>> addXmlStylesheet) . HXT.pickleDoc HXT.xpickle
 
 
-addXmlStylesheet :: HXT.ArrowXml a => a HXT.XmlTree HXT.XmlTree
-addXmlStylesheet = HXT.insertChildrenAt 1 (mkStylesheet <+> HXT.txt "\n")
-
-mkStylesheet :: HXT.ArrowXml a => a HXT.XmlTree HXT.XmlTree
-mkStylesheet =
-  HXT.mkPi (HXT.mkName "xml-stylesheet") HXT.none >>>
-  HXT.addAttr HXT.a_type "text/xsl" >>>
-  HXT.addAttr "href" "/JSBSimScript.xsl"
 
 
-docToXML :: HXT.XmlTree -> BSL.ByteString
-docToXML = BSL.concat . HXT.runLA (HXT.xshowBlob HXT.getChildren)
-
-samlToXML :: HXT.XmlPickler a => a -> BSL.ByteString
-samlToXML = docToXML . samlToDoc
-
-xmlToDoc :: BSL.ByteString -> Maybe HXT.XmlTree
-xmlToDoc bs =
-  let ar = HXT.xreadDoc >>> HXT.removeAllWhiteSpace >>> HXT.removeAllComment
-      r = HXT.runLA ar . BSLC.unpack $  bs
-  in if r /= mempty then pure (last r) else Nothing
 
 
-docToSAML :: HXT.XmlPickler a => HXT.XmlTree -> Either String a
-docToSAML = HXT.unpickleDoc' HXT.xpickle
 
-xmlToSAML :: HXT.XmlPickler a => BSL.ByteString -> Either String a
-xmlToSAML = maybe (Left "invalid XML") docToSAML . xmlToDoc
+
+parseXmlBool :: (Eq a, IsString a) => Maybe a -> Bool
+parseXmlBool (Just "true") = True
+parseXmlBool _             = False
+
+
+renderXmlBool :: IsString a => Bool -> Maybe a
+renderXmlBool True  = Just "true"
+renderXmlBool False = Nothing
+
+filterEmptyContent :: Monad m => ConduitT Event Event m ()
+filterEmptyContent = CL.filter f
+  where
+    f (EventContent (ContentText a)) = not . T.null . T.strip $ a
+    f _                              = True
+
+
+mkXSDAttrs :: Text -> XR.Attributes
+mkXSDAttrs s = mconcat
+  [ XR.attr "xmlns:xsi" "http://www.w3.org/2001/XMLSchema-instance"
+  , XR.attr "xsi:noNamespaceSchemaLocation" s
+  ]
+
+
+yieldXSL :: Monad m => Text -> ConduitT i Event m ()
+yieldXSL a = yield e
+  where e = EventInstruction (
+          Instruction {
+              instructionTarget = "xml-stylesheet",
+              instructionData = mconcat
+                [ "type=\"text/xsl\" href=\"", a, "\""]
+              }
+          )

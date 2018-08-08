@@ -1,5 +1,7 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Control.JSBSim.Handler where
 
 
@@ -12,7 +14,7 @@ import           Crypto.Hash
 import           Crypto.Hash.Algorithms
 import qualified Data.ByteString.Lazy    as BL
 import           Data.JSBSim.Api
-import           Data.JSBSim.Types
+import           Data.JSBSim.Script
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import qualified Data.Text.Encoding      as T
@@ -24,7 +26,7 @@ type SimdM = LoggingT (ReaderT SimdState Handler)
 
 
 
-getScripts :: Text -> SimdM [JsbSimScriptName]
+getScripts :: Text -> SimdM [Text]
 getScripts c = do
   return mempty
 
@@ -44,6 +46,22 @@ getScript et c n = do
         return . addHeader (T.pack . show $ dig) . addHeader t  . addHeader te $ s
 
 
+putScript :: Maybe String -> Text -> Text -> JsbSimScript Double ->
+  SimdM (Headers '[Header "ETag" Text] NoContent)
+putScript et c n s = if n /= s ^. scriptName then throwError errName else do
+  digM <- lookupJsbSimScriptDigest c n
+  case digM of
+    Nothing -> throwError err404
+    Just dig -> if (Just (show dig) == et) then throwError errEtag else do
+      dig' <- maybe dig id <$> updateJsbSimScript dig c s
+      return $ addHeader (T.pack $ show dig') NoContent
+  where
+    errEtag = err412 {
+      errBody = "the etag for the updating record does not match current state."
+      }
+    errName = err412 {
+      errBody = "name does not match"
+      }
 
 postScript :: Text -> JsbSimScript Double ->
   SimdM (Headers '[Header "Location" Text, Header "ETag" Text] NoContent)
