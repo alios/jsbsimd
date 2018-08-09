@@ -5,9 +5,12 @@
 {-# LANGUAGE TemplateHaskell       #-}
 
 module Data.JSBSim.Script
-  ( JsbSimScript, HasJsbSimScript(..)
-  , JsbSimRunConfig, HasJsbSimRunConfig(..)
-  , JsbSimEvent, HasJsbSimEvent(..)
+  ( _JsbSimScript, JsbSimScript, HasJsbSimScript(..)
+  , _JsbSimRunConfig, JsbSimRunConfig, HasJsbSimRunConfig(..)
+  , _JsbSimEvent, JsbSimEvent, HasJsbSimEvent(..)
+  , _JsbSimSetter, JsbSimSetter, HasJsbSimSetter(..)
+  , _FG_RAMP, _FG_STEP, _FG_EXP, JsbSimSetterType, HasJsbSimSetterType(..)
+  , _FG_VALUE, _FG_DELTA, JsbSimSetterAction, HasJsbSimSetterAction(..)
   ) where
 
 
@@ -49,6 +52,7 @@ import           Numeric.Units.Dimensional.Prelude                    as Dim
 import           Numeric.Units.Dimensional.UnitNames                  (UnitName)
 import           Numeric.Units.Dimensional.UnitNames.InterchangeNames (HasInterchangeName (..),
                                                                        InterchangeName)
+import Control.Monad.Catch
 import qualified Prelude
 import           Servant.API
 import           Text.Read
@@ -62,12 +66,15 @@ data JsbSimSetterAction t
   | FG_STEP (Time t)
   | FG_EXP (Time t)
   deriving (Eq, Show, Typeable, Generic)
-
+makePrisms ''JsbSimSetterAction
+makeClassy ''JsbSimSetterAction
 
 data JsbSimSetterType
   = FG_VALUE
   | FG_DELTA
   deriving (Eq, Show, Enum, Typeable, Generic)
+makePrisms ''JsbSimSetterType
+makeClassy ''JsbSimSetterType
 
 data JsbSimSetter t = JsbSimSetter {
   _setterName :: Text,
@@ -76,33 +83,8 @@ data JsbSimSetter t = JsbSimSetter {
   _setterValue :: Maybe Text
   } deriving (Eq, Show, Typeable, Generic)
 
-parseJsbSimSetterAction ::
-  (Show t, Read t, Fractional t) => AttrParser (JsbSimSetterAction t)
-parseJsbSimSetterAction = do
-  r <- fromMaybe "FG_RAMP" <$> attr "action"
-  case r of
-    "FG_RAMP" -> FG_RAMP <$> pT
-    "FG_STEP" -> FG_STEP <$> force "unable to read tc for FG_STEP" pT
-    "FG_EXP" -> FG_EXP <$> force "unable to read tc for FG_EXP" pT
-  where pT = (maybe Nothing (preview (_ReadQuantity second) . T.unpack)) <$> attr "tc"
-
-parseJsbSimSetterType :: AttrParser JsbSimSetterType
-parseJsbSimSetterType = f <$> attr "type"
-  where f (Just "FG_VALUE") = FG_VALUE
-        f (Just "FG_DELTA") = FG_DELTA
-        f Nothing = FG_VALUE
-        f (Just a) = undefined --fail $ "invalid setter type " ++ T.unpack a
-
-instance (Show t, Read t, Fractional t) => FromXML (JsbSimSetter t) where
-  fromXML =  tag' "set" spA pure
-    where
-      spA = JsbSimSetter
-        <$> requireAttr "name"
-        <*> parseJsbSimSetterType
-        <*> parseJsbSimSetterAction
-        <*> attr "value"
-
-instance ToXML (JsbSimSetter t) where
+makePrisms ''JsbSimSetter
+makeClassy ''JsbSimSetter
 
 data JsbSimEvent t = JsbSimEvent {
   _eventName        :: Maybe Text,
@@ -112,7 +94,7 @@ data JsbSimEvent t = JsbSimEvent {
   _eventDescription :: Maybe Text,
   _eventCondition   :: Text,
   _eventDelay       :: Maybe (Time t),
-  _eventNotify      :: Vector (Text, Maybe Text),
+  _eventNotify      :: Vector (Text, Maybe Text, Maybe Text),
   _eventSets        :: Vector (JsbSimSetter t)
   } deriving (Show, Eq, Typeable, Generic)
 
@@ -201,7 +183,7 @@ instance (Show t, Read t, Fractional t, Eq t) => ToXML (JsbSimEvent t) where
       e ^. eventDelay
 
     XR.tag "notify" mempty $
-      mapM_ (\(n, c) -> XR.tag "property" (XR.optionalAttr "caption" c) .
+      mapM_ (\(n, c, a) -> XR.tag "property" (XR.optionalAttr "caption" c `mappend` XR.optionalAttr "apply" a) .
                         XR.content $ n)  (e ^. eventNotify)
     if e ^. eventSets == mempty then pure () else
        sequence_ . fmap toXML $ e ^. eventSets
@@ -293,7 +275,22 @@ instance (Eq a,Show a, Read a, Fractional a) => ToXML (JsbSimScript a) where
               , XR.attr "initialize" $ s ^. scriptAircraftInit
               ]
 
+instance HasJsbSimSetterType (JsbSimSetter t) where
+  jsbSimSetterType = setterType
 
+instance HasJsbSimSetterAction (JsbSimSetter t) t where
+  jsbSimSetterAction = setterAction
+
+instance (Show t, Read t, Fractional t) => FromXML (JsbSimSetter t) where
+  fromXML =  tag' "set" spA pure
+    where
+      spA = JsbSimSetter
+        <$> requireAttr "name"
+        <*> parseJsbSimSetterType
+        <*> parseJsbSimSetterAction
+        <*> attr "value"
+
+instance ToXML (JsbSimSetter t) where
 
 
 parseJsbSimEventChildren ::
@@ -310,7 +307,7 @@ parseJsbSimEventChildren = many parseJsbSimEventChild
         , fmap EventDelay <$> delayP
         ]
       return r
-    pP = tag' "property" (attr "caption") (\c -> (,) <$> content <*> pure c)
+    pP = tag' "property" ((,) <$> attr "caption" <*> attr "apply") (\(c, a) -> (,,) <$> content <*> pure c <*> pure a)
     parseSets = do
       ss <- many fromXML
       return $ if ss == mempty then Nothing else Just (V.fromList ss)
@@ -353,7 +350,7 @@ parseJsbSimScriptChildren = many $ choose
 data EventChild t
   = EventDesc (Maybe Text)
   | EventCond Text
-  | EventNotify (Vector (Text, Maybe Text))
+  | EventNotify (Vector (Text, Maybe Text, Maybe Text))
   | EventSets (Vector (JsbSimSetter t))
   | EventDelay (Time t)
   deriving (Eq, Show)
@@ -385,7 +382,7 @@ eventCDelay =  listToMaybe . f
     f (EventDelay a : as) = a : f as
     f (_ : as)           =  f as
 
-eventCNotify :: [EventChild t] -> Vector (Text, Maybe Text)
+eventCNotify :: [EventChild t] -> Vector (Text, Maybe Text, Maybe Text)
 eventCNotify = fromMaybe mempty . listToMaybe . eventCNotify'
   where
     eventCNotify' []                   = []
@@ -419,3 +416,24 @@ scriptCRun = force "unable to parse run config" . pure . listToMaybe . f
   where f []                 = []
         f (ScriptRun a : as) = a : f as
         f (_ : as)           = f as
+
+
+parseJsbSimSetterAction ::
+  (Show t, Read t, Fractional t) => AttrParser (JsbSimSetterAction t)
+parseJsbSimSetterAction = do
+  r <- fromMaybe "FG_RAMP" <$> attr "action"
+  case r of
+    "FG_RAMP" -> FG_RAMP <$> pT
+    "ramp" -> FG_RAMP <$> pT
+    "FG_STEP" -> FG_STEP <$> force "unable to read tc for FG_STEP" pT
+    "FG_EXP" -> FG_EXP <$> force "unable to read tc for FG_EXP" pT
+    a -> throwM $ XmlException ("unknown event action: " ++ T.unpack a) Nothing
+  where pT = (maybe Nothing (preview (_ReadQuantity second) . T.unpack)) <$> attr "tc"
+
+parseJsbSimSetterType :: AttrParser JsbSimSetterType
+parseJsbSimSetterType = attr "type" >>= f
+  where f (Just "FG_VALUE") = pure FG_VALUE
+        f (Just "FG_DELTA") = pure FG_DELTA
+        f Nothing = pure FG_VALUE
+        f (Just a) = throwM $
+          XmlException ("invalid script event type " ++ T.unpack a )Nothing
